@@ -15,6 +15,8 @@ new BackendStack(app, 'BackendStack', {
   /* Uncomment the next line if you know exactly what Account and Region you
    * want to deploy the stack to. */
   // env: { account: '123456789012', region: 'us-east-1' },
+  // */
+  env: { account: '505827992348', region: 'us-west-2' },
 
   /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
 });
