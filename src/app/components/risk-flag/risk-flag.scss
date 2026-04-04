@@ -1,0 +1,22 @@
+div[role='alert'] {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+
+  strong {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #856404;
+  }
+
+  p {
+    color: #533f03;
+    font-size: 0.9rem;
+  }
+
+  .subhead {
+    margin-bottom: 0.5rem;
+  }
+}

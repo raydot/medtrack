@@ -1,0 +1,15 @@
+services:
+  localstack:
+    container_name: localstack-main
+    image: localstack/localstack
+    ports:
+      - '4566:4566'
+    environment:
+      - DEFAULT_REGION=us-west-2
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
+      - SERVICES=dynamodb,lambda,apigateway,cloudformation,iam,s3,ssm,logs
+      - DEBUG=1
+      - PERSISTENCE=1
+    volumes:
+      - '/var/run/docker.sock:/var/run/docker.sock'
+      - './localstack-data:/var/lib/localstack'

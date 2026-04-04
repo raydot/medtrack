@@ -1,0 +1,9 @@
+@if (atRisk().length > 0) {
+<div role="alert">
+  <strong>Attention:</strong>
+  <p class="subhead">You have {{ atRisk().length }} prescription(s) that need attention.</p>
+  @for (rx of atRisk(); track rx.id) {
+  <p>{{ rx.drugName }} — {{ rx.refillStatus }}</p>
+  }
+</div>
+}

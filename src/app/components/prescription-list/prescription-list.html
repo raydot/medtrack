@@ -1,0 +1,22 @@
+<table>
+  <thead>
+    <tr>
+      <th>Drug</th>
+      <th>Days Supply</th>
+      <th>Last Fill Date</th>
+      <th>Adherence</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    @for (rx of prescriptions(); track rx.id) {
+    <tr>
+      <td>{{ rx.drugName }}</td>
+      <td>{{ rx.daysSupply }}</td>
+      <td>{{ rx.lastFillDate }}</td>
+      <td>{{ getAdherence(rx) }}%</td>
+      <td>{{ rx.refillStatus }}</td>
+    </tr>
+    }
+  </tbody>
+</table>
