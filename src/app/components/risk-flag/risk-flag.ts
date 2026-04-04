@@ -3,7 +3,7 @@ import { Prescriptions } from '../../services/prescriptions';
 
 @Component({
   selector: 'app-risk-flag',
-  imports: [RiskFlag],
+  imports: [],
   templateUrl: './risk-flag.html',
   styleUrl: './risk-flag.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -1,0 +1,8 @@
+{
+  "default": {
+    "paths": ["features/**/*.feature"],
+    "require": ["features/step-definitions/**/*.ts"],
+    "requireModule": ["tsx/cjs"],
+    "format": ["progress", "html:cucumber-report.html"]
+  }
+}
