@@ -1,3 +1,10 @@
 <h1>MedTrack</h1>
+<select (change)="onMemberChange($event)">
+  <option value="member-123">Member 123</option>
+  <option value="member-456">Member 456</option>
+  <option value="member-789">Member 789</option>
+  <option value="member-321">Member 321</option>
+  <option value="member-654">Member 654</option>
+</select>
 <app-risk-flag [atRisk]="atRisk()" />
 <app-prescription-list [prescriptions]="prescriptions()" />

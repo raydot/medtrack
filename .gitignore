@@ -47,3 +47,20 @@ __screenshots__/
 Thumbs.db
 
 .env
+
+*.pem.key
+
+
+```medtrack/.gitignore#L1-1
+# Test artifacts
+/test-results
+/playwright-report
+cucumber-report.html
+
+# LocalStack
+/backend/localstack-data
+
+# AWS
+*.pem
+*.key
+*.crt

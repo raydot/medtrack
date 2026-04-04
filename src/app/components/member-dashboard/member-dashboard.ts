@@ -15,11 +15,17 @@ export class MemberDashboard implements OnInit {
   prescriptions = signal<Prescriptions[]>([]);
   atRisk = signal<Prescriptions[]>([]);
   ngOnInit(): void {
-    this.prescriptionService.getPrescriptions('member-123').subscribe((all) => {
+    this.loadMember('member-123');
+  }
+  private loadMember(memberId: string): void {
+    this.prescriptionService.getPrescriptions(memberId).subscribe((all) => {
       this.prescriptions.set(all);
       this.atRisk.set(
         all.filter((rx) => rx.refillStatus === 'due' || rx.refillStatus === 'overdue'),
       );
     });
+  }
+  onMemberChange(event: Event): void {
+    this.loadMember((event.target as HTMLSelectElement).value);
   }
 }

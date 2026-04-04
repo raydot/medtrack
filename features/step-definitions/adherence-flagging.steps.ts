@@ -1,6 +1,5 @@
 import { Given, When, Then } from '@cucumber/cucumber';
 import assert from 'assert';
-// import { PrescriptionService } from '../../src/app/services/prescriptions';
 import { calculateAdherence } from '../../src/app/utilities/adherence';
 
 let daysSupply: number;
@@ -30,8 +29,6 @@ When('the member views their dashboard', () => {
     refillStatus: 'ok' as const,
   };
 
-  // const service = new PrescriptionService();
-  // adherence = service.calculateAdherence(rx);
   adherence = calculateAdherence(rx, today);
 });
 
