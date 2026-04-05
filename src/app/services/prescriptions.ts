@@ -22,7 +22,7 @@ export interface Prescriptions {
 export class PrescriptionService {
   private dateNow = inject(DATE_NOW);
   // private apiUrl = 'http://localhost:4566/restapis/xehaz6534e/prod/_user_request_/prescriptions';
-  private apiUrl = 'https://m5l2a46t67.execute-api.us-west-2.amazonaws.com/prod/prescriptions';
+  private apiUrl = 'https://bi9pbmv63c.execute-api.us-west-2.amazonaws.com/prod/prescriptions';
   private http = inject(HttpClient);
 
   getPrescriptions(memberId: string): Observable<Prescriptions[]> {

@@ -1,18 +1,20 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
-import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
+// import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+import Anthropic from '@anthropic-ai/sdk';
 
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({ region: process.env.AWS_REGION }));
-const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_REGION });
+// const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_REGION });
 const lambda = new LambdaClient({ region: process.env.AWS_REGION });
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_AUTH_TOKEN });
 
 const tools = [
   {
     name: 'triggerRefill',
     description: 'Trigger an automatic refill for an overdue prescription.',
     input_schema: {
-      type: 'object',
+      type: 'object' as const,
       properties: {
         memberId: { type: 'string', description: 'The member ID' },
         rxId: { type: 'string', description: 'The prescription ID' },
@@ -24,7 +26,7 @@ const tools = [
     name: 'flagForReview',
     description: 'Flag a prescription for human review instead of automatic refill.',
     input_schema: {
-      type: 'object',
+      type: 'object' as const,
       properties: {
         memberId: { type: 'string', description: 'The member ID' },
         rxId: { type: 'string', description: 'The prescription ID' },
@@ -50,29 +52,40 @@ export const handler = async () => {
   if (prescriptions.length === 0) return { message: 'No overdue prescriptions found' };
 
   // Step 2: Ask Claude what to do with each one
-  const response = await bedrock.send(
-    new InvokeModelCommand({
-      modelId: 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
-      contentType: 'application/json',
-      accept: 'application/json',
-      body: JSON.stringify({
-        anthropic_version: 'bedrock-2023-05-31',
-        max_tokens: 1024,
-        tools,
-        messages: [
-          {
-            role: 'user',
-            content: `You are a medication adherence agent. Review these overdue prescriptions and decide whether to trigger an automatic refill or flag for human review. Use triggerRefill for straightforward cases. Use flagForReview if the prescription has been overdue for an unusually long time (more than 60 days) or if it is a controlled substance class drug. Prescriptions: ${JSON.stringify(prescriptions.map((p) => ({ memberId: p.memberId, rxId: p.id, drugName: p.drugName, lastFillDate: p.lastFillDate, daysSupply: p.daysSupply })))}`,
-          },
-        ],
-      }),
-    }),
-  );
+  // --- Bedrock (restore when quota issue resolved) ---
+  // const response = await bedrock.send(
+  //   new InvokeModelCommand({
+  //     modelId: 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
+  //     contentType: 'application/json',
+  //     accept: 'application/json',
+  //     body: JSON.stringify({
+  //       anthropic_version: 'bedrock-2023-05-31',
+  //       max_tokens: 1000,
+  //       tools,
+  //       messages: [{ role: 'user', content: `...` }],
+  //     }),
+  //   }),
+  // );
+  // const body = JSON.parse(Buffer.from(response.body).toString());
+  // const toolCalls = body.content.filter((block: any) => block.type === 'tool_use');
+  // --- End Bedrock ---
 
-  // Step 3: Parse Claude's response and execute tool calls
-  const body = JSON.parse(Buffer.from(response.body).toString());
-  const toolCalls = body.content.filter((block: any) => block.type === 'tool_use');
+  // --- Anthropic direct (temporary, swap back to Bedrock when quota resolved) ---
+  const message = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 1000,
+    tools,
+    messages: [
+      {
+        role: 'user',
+        content: `You are a medication adherence agent. Review these overdue prescriptions and decide whether to trigger an automatic refill or flag for human review. Use triggerRefill for straightforward cases. Use flagForReview if the prescription has been overdue for an unusually long time (more than 60 days) or if it is a controlled substance class drug. Prescriptions: ${JSON.stringify(prescriptions.map((p) => ({ memberId: p.memberId, rxId: p.id, drugName: p.drugName, lastFillDate: p.lastFillDate, daysSupply: p.daysSupply })))}`,
+      },
+    ],
+  });
+  const toolCalls = message.content.filter((block) => block.type === 'tool_use');
+  // --- End Anthropic direct ---
 
+  // Step 3: Execute tool calls
   for (const call of toolCalls) {
     const functionName =
       call.name === 'triggerRefill'

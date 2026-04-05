@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib/core';
 import { Construct } from 'constructs';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as lambdaNodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as path from 'path';
 import * as events from 'aws-cdk-lib/aws-events';
@@ -30,7 +31,6 @@ export class BackendStack extends cdk.Stack {
     const getPrescriptionsLambda = new lambda.Function(this, 'GetPrescriptionsFunction', {
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'get-prescriptions.handler',
-      // code: lambda.Code.fromAsset(path.join(__dirname, '../lambda')),
       code: lambda.Code.fromAsset(path.join(__dirname, '../lambda/dist')),
       environment: {
         TABLE_NAME: table.tableName,
@@ -53,30 +53,28 @@ export class BackendStack extends cdk.Stack {
     byMember.addMethod('GET', new apigateway.LambdaIntegration(getPrescriptionsLambda));
 
     // Tool Lambdas
-    const triggerRefillLambda = new lambda.Function(this, 'TriggerRefillFunction', {
+    const triggerRefillLambda = new lambdaNodejs.NodejsFunction(this, 'TriggerRefillFunction', {
+      entry: path.join(__dirname, '../lambda/agents/trigger-refill.ts'),
       runtime: lambda.Runtime.NODEJS_22_X,
-      handler: 'trigger-refill.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../lambda/agents/dist')),
       environment: { TABLE_NAME: table.tableName },
     });
 
-    const flagForReviewLambda = new lambda.Function(this, 'FlagForReviewFunction', {
+    const flagForReviewLambda = new lambdaNodejs.NodejsFunction(this, 'FlagForReviewFunction', {
+      entry: path.join(__dirname, '../lambda/agents/flag-for-review.ts'),
       runtime: lambda.Runtime.NODEJS_22_X,
-      handler: 'flag-for-review.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../lambda/agents/dist')),
       environment: { TABLE_NAME: table.tableName },
     });
 
     // Refill Agent Lambda
-    const refillAgentLambda = new lambda.Function(this, 'RefillAgentFunction', {
+    const refillAgentLambda = new lambdaNodejs.NodejsFunction(this, 'RefillAgentFunction', {
+      entry: path.join(__dirname, '../lambda/agents/refill-agent.ts'),
       runtime: lambda.Runtime.NODEJS_22_X,
-      handler: 'refill-agent.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../lambda/agents/dist')),
       timeout: cdk.Duration.seconds(60),
       environment: {
         TABLE_NAME: table.tableName,
         TRIGGER_REFILL_FUNCTION: triggerRefillLambda.functionName,
         FLAG_FOR_REVIEW_FUNCTION: flagForReviewLambda.functionName,
+        ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN ?? '',
       },
     });
 

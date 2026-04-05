@@ -19,6 +19,7 @@
     "@angular/forms": "^21.2.0",
     "@angular/platform-browser": "^21.2.0",
     "@angular/router": "^21.2.0",
+    "@anthropic-ai/sdk": "^0.82.0",
     "@aws-sdk/client-bedrock-runtime": "^3.1024.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
