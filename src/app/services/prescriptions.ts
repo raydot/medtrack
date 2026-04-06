@@ -7,6 +7,11 @@ export const DATE_NOW = new InjectionToken<() => Date>('DATE_NOW', {
   factory: () => () => new Date(),
 });
 
+export const API_BASE_URL = new InjectionToken<string>('API_BASE_URL', {
+  providedIn: 'root',
+  factory: () => 'https://bi9pbmv63c.execute-api.us-west-2.amazonaws.com/prod',
+});
+
 export interface Prescriptions {
   id: string;
   memberId: string;
@@ -22,11 +27,13 @@ export interface Prescriptions {
 export class PrescriptionService {
   private dateNow = inject(DATE_NOW);
   // private apiUrl = 'http://localhost:4566/restapis/xehaz6534e/prod/_user_request_/prescriptions';
-  private apiUrl = 'https://bi9pbmv63c.execute-api.us-west-2.amazonaws.com/prod/prescriptions';
+  // private apiUrl = 'https://bi9pbmv63c.execute-api.us-west-2.amazonaws.com/prod/prescriptions';
+  private apiUrl = inject(API_BASE_URL);
   private http = inject(HttpClient);
 
   getPrescriptions(memberId: string): Observable<Prescriptions[]> {
-    return this.http.get<Prescriptions[]>(`${this.apiUrl}/${memberId}`);
+    // return this.http.get<Prescriptions[]>(`${this.apiUrl}/${memberId}`);
+    return this.http.get<Prescriptions[]>(`${this.apiUrl}/prescriptions/${memberId}`);
   }
 
   calculateAdherence(rx: Prescriptions): number {

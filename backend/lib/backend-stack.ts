@@ -4,16 +4,23 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as lambdaNodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
-import * as path from 'path';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as path from 'path';
+
+const CORS_OPTIONS: apigateway.ResourceOptions = {
+  defaultCorsPreflightOptions: { allowOrigins: apigateway.Cors.ALL_ORIGINS },
+};
 
 export class BackendStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // DynamoDB table
+    // -------------------------------------------------------------------------
+    // DynamoDB — single table design
+    // -------------------------------------------------------------------------
+
     const table = new dynamodb.Table(this, 'MedTrackTable', {
       tableName: 'MedTrack',
       partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
@@ -21,43 +28,52 @@ export class BackendStack extends cdk.Stack {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
     });
 
+    // GSI: query all prescriptions by refill status across all members
     table.addGlobalSecondaryIndex({
       indexName: 'StatusIndex',
       partitionKey: { name: 'GSI1PK', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'lastFillDate', type: dynamodb.AttributeType.STRING },
     });
 
-    // Lambda function
+    // -------------------------------------------------------------------------
+    // API Gateway
+    // -------------------------------------------------------------------------
+
+    const api = new apigateway.RestApi(this, 'MedTrackApi', {
+      restApiName: 'MedTrack API',
+      defaultCorsPreflightOptions: { allowOrigins: apigateway.Cors.ALL_ORIGINS },
+    });
+
+    // -------------------------------------------------------------------------
+    // GET /prescriptions/{memberId}
+    // -------------------------------------------------------------------------
+
     const getPrescriptionsLambda = new lambda.Function(this, 'GetPrescriptionsFunction', {
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'get-prescriptions.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../lambda/dist')),
-      environment: {
-        TABLE_NAME: table.tableName,
-      },
+      environment: { TABLE_NAME: table.tableName },
     });
 
-    // Grant Lambda read access to DynamoDB
     table.grantReadData(getPrescriptionsLambda);
 
-    // API Gateway
-    const api = new apigateway.RestApi(this, 'MedTrackApi', {
-      restApiName: 'MedTrack API',
-      defaultCorsPreflightOptions: {
-        allowOrigins: apigateway.Cors.ALL_ORIGINS,
-      },
-    });
+    api.root
+      .addResource('prescriptions')
+      .addResource('{memberId}')
+      .addMethod('GET', new apigateway.LambdaIntegration(getPrescriptionsLambda));
 
-    const prescriptions = api.root.addResource('prescriptions');
-    const byMember = prescriptions.addResource('{memberId}');
-    byMember.addMethod('GET', new apigateway.LambdaIntegration(getPrescriptionsLambda));
+    // -------------------------------------------------------------------------
+    // Tool Lambdas — called by agents, never directly by API Gateway
+    // Agents do not write to DynamoDB directly; all writes go through these.
+    // -------------------------------------------------------------------------
 
-    // Tool Lambdas
     const triggerRefillLambda = new lambdaNodejs.NodejsFunction(this, 'TriggerRefillFunction', {
       entry: path.join(__dirname, '../lambda/agents/trigger-refill.ts'),
       runtime: lambda.Runtime.NODEJS_22_X,
       environment: { TABLE_NAME: table.tableName },
     });
+
+    table.grantWriteData(triggerRefillLambda);
 
     const flagForReviewLambda = new lambdaNodejs.NodejsFunction(this, 'FlagForReviewFunction', {
       entry: path.join(__dirname, '../lambda/agents/flag-for-review.ts'),
@@ -65,7 +81,13 @@ export class BackendStack extends cdk.Stack {
       environment: { TABLE_NAME: table.tableName },
     });
 
-    // Refill Agent Lambda
+    table.grantWriteData(flagForReviewLambda);
+
+    // -------------------------------------------------------------------------
+    // Agent 1: Refill Agent — autonomous, triggered by EventBridge cron
+    // Scans overdue prescriptions daily and triggers refills or flags for review
+    // -------------------------------------------------------------------------
+
     const refillAgentLambda = new lambdaNodejs.NodejsFunction(this, 'RefillAgentFunction', {
       entry: path.join(__dirname, '../lambda/agents/refill-agent.ts'),
       runtime: lambda.Runtime.NODEJS_22_X,
@@ -78,19 +100,9 @@ export class BackendStack extends cdk.Stack {
       },
     });
 
-    // Permissions
-    table.grantWriteData(triggerRefillLambda);
-    table.grantWriteData(flagForReviewLambda);
     table.grantReadData(refillAgentLambda);
     triggerRefillLambda.grantInvoke(refillAgentLambda);
     flagForReviewLambda.grantInvoke(refillAgentLambda);
-
-    // EventBridge daily cron
-    const rule = new events.Rule(this, 'DailyRefillRule', {
-      schedule: events.Schedule.cron({ hour: '8', minute: '0' }),
-    });
-    rule.addTarget(new targets.LambdaFunction(refillAgentLambda));
-
     refillAgentLambda.addToRolePolicy(
       new iam.PolicyStatement({
         actions: [
@@ -101,5 +113,73 @@ export class BackendStack extends cdk.Stack {
         resources: ['*'],
       }),
     );
+
+    const dailyRefillRule = new events.Rule(this, 'DailyRefillRule', {
+      schedule: events.Schedule.cron({ hour: '8', minute: '0' }),
+    });
+    dailyRefillRule.addTarget(new targets.LambdaFunction(refillAgentLambda));
+
+    // -------------------------------------------------------------------------
+    // Agent 2: Coordinator Copilot — POST /agent/coordinator
+    // ReAct loop: natural language queries over member panel, human-in-the-loop
+    // -------------------------------------------------------------------------
+
+    const coordinatorCopilotLambda = new lambdaNodejs.NodejsFunction(
+      this,
+      'CoordinatorCopilotFunction',
+      {
+        entry: path.join(__dirname, '../lambda/agents/coordinator-copilot.ts'),
+        runtime: lambda.Runtime.NODEJS_22_X,
+        timeout: cdk.Duration.seconds(60),
+        environment: {
+          TABLE_NAME: table.tableName,
+          TRIGGER_REFILL_FUNCTION: triggerRefillLambda.functionName,
+          ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN ?? '',
+        },
+      },
+    );
+
+    table.grantReadData(coordinatorCopilotLambda);
+    triggerRefillLambda.grantInvoke(coordinatorCopilotLambda);
+    coordinatorCopilotLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['bedrock:InvokeModel'],
+        resources: ['*'],
+      }),
+    );
+
+    const agentResource = api.root.addResource('agent');
+    agentResource
+      .addResource('coordinator', CORS_OPTIONS)
+      .addMethod('POST', new apigateway.LambdaIntegration(coordinatorCopilotLambda));
+
+    // -------------------------------------------------------------------------
+    // Agent 3: Member Chat — POST /agent/member-chat/{memberId}
+    // RAG-lite: pre-loads member prescriptions as context before each Bedrock call
+    // memberId comes from the authenticated session (path parameter), never user input
+    // -------------------------------------------------------------------------
+
+    const memberChatLambda = new lambdaNodejs.NodejsFunction(this, 'MemberChatFunction', {
+      entry: path.join(__dirname, '../lambda/agents/member-chat.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        TABLE_NAME: table.tableName,
+        ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN ?? '',
+      },
+    });
+
+    table.grantReadData(memberChatLambda);
+    memberChatLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['bedrock:InvokeModel'],
+        resources: ['*'],
+      }),
+    );
+
+    agentResource
+      .addResource('member-chat')
+      .addResource('{memberId}', CORS_OPTIONS)
+      .addMethod('POST', new apigateway.LambdaIntegration(memberChatLambda));
   }
 }
