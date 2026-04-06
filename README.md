@@ -137,3 +137,12 @@ It was only after I'd built the simple agents that I saw the need and potential 
 ## What's Next
 
 As I just mentioned, the natural expansion (and where the real AI value of this project lies) is an orchestration layer — a planning agent that runs nightly, does a triage pass across the coordinator's panel, delegates to specialist agents (Gap in Care, Readmission Risk, Formulary Switch), tracks what it's already flagged via a `CASE#` entity type in DynamoDB, and synthesizes a morning briefing. It spent some time thkiking about the use cases.  For instance the primary triggering mechanism would be event-driven rather than nightly — a discharge recorded at 3pm shouldn't wait until 2am for the Readmission Risk Agent to notice.  There is also some potentual for connecting to existing pharma APIs to flag things like drug interactions or track over-prescribing.
+
+## References
+
+Two papers I read and tried to put into use in this project:
+
+[ReAct: Synergizing Reasoning AND Acting in
+Language Models](https://arxiv.org/pdf/2210.03629) by Yao, et al.
+
+[Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks](https://arxiv.org/pdf/2005.11401) by Lewis et al., specifically as it informs the concept of ["Tools" in Anthropic's Claude](https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview).
