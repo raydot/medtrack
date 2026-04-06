@@ -2,7 +2,7 @@
 
 I wanted to get some hands-on practice with Angular 21, AWS serverless infrastructure, and the Anthropic API, and I wanted a real-world usecase building chat agents -- so I built a medication adherence dashboard for a fictional health insurance and drug delivery company. The domain turned out to be a great fit: healthcare has real compliance constraints, genuinely interesting AI use cases, and enough complexity to make the architectural decisions matter.
 
-This is a portfolio project. I built it to learn, and the README reflects that.
+This is a portfolio project. I built it to learn, and this README describes the journey.
 
 ---
 
