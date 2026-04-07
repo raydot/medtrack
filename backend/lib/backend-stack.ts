@@ -26,6 +26,7 @@ export class BackendStack extends cdk.Stack {
       partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'SK', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
     });
 
     // GSI: query all prescriptions by refill status across all members
@@ -33,6 +34,19 @@ export class BackendStack extends cdk.Stack {
       indexName: 'StatusIndex',
       partitionKey: { name: 'GSI1PK', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'lastFillDate', type: dynamodb.AttributeType.STRING },
+    });
+
+    table.addGlobalSecondaryIndex({
+      indexName: 'CoordinatorCasesIndex',
+      partitionKey: { name: 'GSI2PK', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'GSI2SK', type: dynamodb.AttributeType.STRING },
+    });
+
+    const formularyTable = new dynamodb.Table(this, 'MedTrackFormularyTable', {
+      tableName: 'MedTrackFormulary',
+      partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'SK', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
     });
 
     // -------------------------------------------------------------------------
@@ -176,6 +190,130 @@ export class BackendStack extends cdk.Stack {
         resources: ['*'],
       }),
     );
+
+    // -------------------------------------------------------------------------
+    // Operational Memory — CASE# read/write Lambdas
+    // Called by specialist agents and the Orchestrator, not by API Gateway
+    // -------------------------------------------------------------------------
+
+    const openCaseLambda = new lambdaNodejs.NodejsFunction(this, 'OpenCaseFunction', {
+      entry: path.join(__dirname, '../lambda/agents/open-case.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      environment: { TABLE_NAME: table.tableName },
+    });
+
+    const checkAndEscalateCasesLambda = new lambdaNodejs.NodejsFunction(
+      this,
+      'CheckAndEscalateCasesFunction',
+      {
+        entry: path.join(__dirname, '../lambda/agents/check-and-escalate-cases.ts'),
+        runtime: lambda.Runtime.NODEJS_22_X,
+        environment: { TABLE_NAME: table.tableName },
+      },
+    );
+
+    table.grantWriteData(openCaseLambda);
+    table.grantReadWriteData(checkAndEscalateCasesLambda);
+
+    // -------------------------------------------------------------------------
+    // Agent 4: Gap in Care — identifies missing standard-of-care medications
+    // Invoked by Orchestrator triage; writes CASE# via openCaseLambda
+    // -------------------------------------------------------------------------
+
+    const gapInCareLambda = new lambdaNodejs.NodejsFunction(this, 'GapInCareFunction', {
+      entry: path.join(__dirname, '../lambda/agents/gap-in-care.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        TABLE_NAME: table.tableName,
+        OPEN_CASE_FUNCTION: openCaseLambda.functionName,
+        ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN ?? '',
+      },
+    });
+
+    table.grantReadData(gapInCareLambda);
+    openCaseLambda.grantInvoke(gapInCareLambda);
+
+    // -------------------------------------------------------------------------
+    // Agent 5: Readmission Risk — monitors recently discharged members
+    // Triggered by Orchestrator triage; urgency tiered by days since discharge
+    // -------------------------------------------------------------------------
+
+    const readmissionRiskLambda = new lambdaNodejs.NodejsFunction(this, 'ReadmissionRiskFunction', {
+      entry: path.join(__dirname, '../lambda/agents/readmission-risk.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        TABLE_NAME: table.tableName,
+        OPEN_CASE_FUNCTION: openCaseLambda.functionName,
+        ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN ?? '',
+      },
+    });
+
+    table.grantReadData(readmissionRiskLambda);
+    openCaseLambda.grantInvoke(readmissionRiskLambda);
+
+    // -------------------------------------------------------------------------
+    // Agent 6: Formulary Switch — identifies tier changes and drafts prescriber outreach
+    // Coordinator must approve outreach before anything is sent — hard human-in-the-loop
+    // -------------------------------------------------------------------------
+
+    const formularySwitchLambda = new lambdaNodejs.NodejsFunction(this, 'FormularySwitchFunction', {
+      entry: path.join(__dirname, '../lambda/agents/formulary-switch.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        TABLE_NAME: table.tableName,
+        FORMULARY_TABLE_NAME: formularyTable.tableName,
+        OPEN_CASE_FUNCTION: openCaseLambda.functionName,
+        ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN ?? '',
+      },
+    });
+
+    table.grantReadData(formularySwitchLambda);
+    formularyTable.grantReadData(formularySwitchLambda);
+    openCaseLambda.grantInvoke(formularySwitchLambda);
+
+    // -------------------------------------------------------------------------
+    // Orchestrator — coordinates all six agents
+    // Nightly cron at 02:00 UTC; also triggered by DynamoDB Streams (next phase)
+    // -------------------------------------------------------------------------
+
+    const orchestratorLambda = new lambdaNodejs.NodejsFunction(this, 'OrchestratorFunction', {
+      entry: path.join(__dirname, '../lambda/agents/orchestrator.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: cdk.Duration.seconds(300),
+      environment: {
+        TABLE_NAME: table.tableName,
+        CHECK_CASES_FUNCTION: checkAndEscalateCasesLambda.functionName,
+        REFILL_AGENT_FUNCTION: refillAgentLambda.functionName,
+        GAP_IN_CARE_FUNCTION: gapInCareLambda.functionName,
+        READMISSION_RISK_FUNCTION: readmissionRiskLambda.functionName,
+        FORMULARY_SWITCH_FUNCTION: formularySwitchLambda.functionName,
+        ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN ?? '',
+        LANGFUSE_PUBLIC_KEY: process.env.LANGFUSE_PUBLIC_KEY ?? '',
+        LANGFUSE_SECRET_KEY: process.env.LANGFUSE_SECRET_KEY ?? '',
+        LANGFUSE_BASE_URL: process.env.LANGFUSE_BASE_URL ?? '',
+      },
+    });
+
+    table.grantReadData(orchestratorLambda);
+    checkAndEscalateCasesLambda.grantInvoke(orchestratorLambda);
+    refillAgentLambda.grantInvoke(orchestratorLambda);
+    gapInCareLambda.grantInvoke(orchestratorLambda);
+    readmissionRiskLambda.grantInvoke(orchestratorLambda);
+    formularySwitchLambda.grantInvoke(orchestratorLambda);
+    orchestratorLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['bedrock:InvokeModel'],
+        resources: ['*'],
+      }),
+    );
+
+    const nightlyOrchestratorRule = new events.Rule(this, 'NightlyOrchestratorRule', {
+      schedule: events.Schedule.cron({ hour: '2', minute: '0' }),
+    });
+    nightlyOrchestratorRule.addTarget(new targets.LambdaFunction(orchestratorLambda));
 
     agentResource
       .addResource('member-chat')

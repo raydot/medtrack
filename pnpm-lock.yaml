@@ -93,6 +93,9 @@ importers:
       constructs:
         specifier: ^10.5.0
         version: 10.6.0
+      langfuse:
+        specifier: ^3.38.20
+        version: 3.38.20
     devDependencies:
       '@types/jest':
         specifier: ^30
@@ -3518,6 +3521,14 @@ packages:
   knuth-shuffle-seeded@1.0.6:
     resolution: {integrity: sha512-9pFH0SplrfyKyojCLxZfMcvkhf5hH0d+UwR9nTVJ/DDQJGuzcXjTwB7TP7sDfehSudlGGaOLblmEWqv04ERVWg==}
 
+  langfuse-core@3.38.20:
+    resolution: {integrity: sha512-zBKVmQN/1oT5VWZUBYlWzvokIlkC/6mnpgr/2atMyTeAm+jR3ia7w2iJMjlrF5/oG8ukO1s8+LDRCzJpF1QeEA==}
+    engines: {node: '>=18'}
+
+  langfuse@3.38.20:
+    resolution: {integrity: sha512-MAmBAASSzJtmK1O9HQegA1mFsQhT8Yf+OJRGvE7FXkyv3g/eiBE0glLD0Ohg3pkxhoPdggM5SejK7ue9ctlaMA==}
+    engines: {node: '>=18'}
+
   leven@3.1.0:
     resolution: {integrity: sha512-qsda+H8jTaUaN/x5vzW2rzc+8Rw4TAQ/4KjB46IwK5VH+IlVeeeje/EoZRpiXvIqjFgK84QffqPztGI3VBLG1A==}
     engines: {node: '>=6'}
@@ -3697,6 +3708,10 @@ packages:
 
   msgpackr@1.11.9:
     resolution: {integrity: sha512-FkoAAyyA6HM8wL882EcEyFZ9s7hVADSwG9xrVx3dxxNQAtgADTrJoEWivID82Iv1zWDsv/OtbrrcZAzGzOMdNw==}
+
+  mustache@4.2.0:
+    resolution: {integrity: sha512-71ippSywq5Yb7/tVYyGbkBggbU8H3u5Rz56fH60jGFgr8uHwxs+aSKeqmluIVzM0m0kB7xQjKS6qPfd0b2ZoqQ==}
+    hasBin: true
 
   mute-stream@2.0.0:
     resolution: {integrity: sha512-WWdIxpyjEn+FhQJQQv9aQAYlHoNVdzIzUySNV1gHUPDSdZJ3yZn7pAAbQcV7B56Mvu881q9FZV+0Vx2xC44VWA==}
@@ -8701,6 +8716,14 @@ snapshots:
     dependencies:
       seed-random: 2.2.0
 
+  langfuse-core@3.38.20:
+    dependencies:
+      mustache: 4.2.0
+
+  langfuse@3.38.20:
+    dependencies:
+      langfuse-core: 3.38.20
+
   leven@3.1.0: {}
 
   lines-and-columns@1.2.4: {}
@@ -8898,6 +8921,8 @@ snapshots:
     optionalDependencies:
       msgpackr-extract: 3.0.3
     optional: true
+
+  mustache@4.2.0: {}
 
   mute-stream@2.0.0: {}
 
