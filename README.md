@@ -2,7 +2,7 @@
 
 I wanted to get some hands-on practice with Angular 21, AWS serverless infrastructure, and the Anthropic API, and I wanted a real-world usecase building chat agents -- so I built a medication adherence dashboard for a fictional health insurance and drug delivery company. The domain turned out to be a great fit: healthcare has real compliance constraints, genuinely interesting AI use cases, and enough complexity to make the architectural decisions matter.
 
-This is a portfolio project. I built it to learn, and the README reflects that.
+This is a portfolio project. I built it to learn, and this README describes the journey.
 
 ---
 
@@ -32,23 +32,23 @@ Under the hood, three AI agents handle the operational work: one runs autonomous
 
 ### Angular 21
 
-I came into this with React experience and had to recalibrate. I've used dependency injection in Java Spring, and Angular's dependency injection system is pretty cool — injecting a `PrescriptionsService` singleton is just `inject(PrescriptionsService)`, no prop drilling, no context providers, no store boilerplate, NO REDUX for simple cases.
+I came into this with more recent React/Next than Angluar experience and had to relearn a few things. I've used dependency injection in Java Spring, and Angular's dependency injection system is pretty cool — injecting a `PrescriptionsService` singleton is just `inject(PrescriptionsService)`, no prop drilling, no context providers, no store boilerplate, *NO REDUX* for simple cases.
 
 Signals were new to me and I dig them. A signal is a value that knows when it changes and tells Angular about it. Combined with `computed()` for derived state and `OnPush` change detection, the result is a component tree that only re-renders what actually needs to — and you can reason about it easily.
 
-It's been a few years since I did any Angular, and I had to learned to stop reaching for `*ngIf` and `*ngFor`. Angular 21's native control flow (`@if`, `@for`) is cleaner and the `track` expression in `@for` does what `trackBy` used to do, more concisely.
+I was also glad to see some of the `*ngIf` and `*ngFor` language has been replace. I like Angular 21's native control flow (`@if`, `@for`) as it's cleaner and the `track` expression in `@for` does what `trackBy` used to do, more concisely.
 
 One thing that surprised me: the `InjectionToken` pattern for non-class values. I injected the current date as `InjectionToken<() => Date>` rather than calling `new Date()` directly in the service. It sounds like over-engineering until I tried to write a deterministic test for adherence calculation — suddenly having a fixed, injectable date factory is obviously correct. Same principle for the API base URL.  Fortunately it was an easy refactor.
 
 ### RxJS
 
-HttpClient returns Observables, so I worked with them as Observables rather than converting to Promises. The `async` pipe in templates handles subscription and cleanup automatically, which prevents the memory leak category of bugs entirely. I didn't need most of RxJS for this project, but I've been meaning to try it for while and I understand now why it exists.  I've been a fan of observables since the days of RSS.
+`HttpClient` returns Observables, so I worked with them as Observables rather than converting to Promises. The `async` pipe in templates handles subscription and cleanup automatically, which prevents the memory leak category of bugs entirely. I didn't need most of RxJS for this project, but I've been meaning to try it for while and I understand now why it exists.  I've been a fan of observables since the days of RSS.
 
 ### DynamoDB Single-Table Design
 
-This was the biggest conceptual shift in the backend work. Coming from relational databases, the instinct is to design a schema and figure out queries later. DynamoDB inverts that: you list every query your application needs to make, then design the key structure to make each one efficient without a scan.
+This was the biggest conceptual shift in the backend work. Coming from relational databases and having only done a bit of MongoDB, the instinct is to design a schema and figure out queries later. DynamoDB inverts that: you list every query your application needs to make, then design the key structure to make each one efficient without a scan.
 
-MedTrack's table uses composite keys with SK prefixes (`RX#`, `REFILL#`, `REVIEW#`) to co-locate multiple entity types under a member partition. The one cross-member query — finding all overdue prescriptions across all members — gets a dedicated GSI (`StatusIndex`) rather than a table scan. Once I was able to get my head around GSI (indexes!  sorta) and what problem it solves it was smoother sailing, but I'd probably need to use a few more to truly undrstand.  
+MedTrack's table uses composite keys with SK prefixes (`RX#`, `REFILL#`, `REVIEW#`) to co-locate multiple entity types under a member partition. The one cross-member query — finding all overdue prescriptions across all members — gets a dedicated GSI (`StatusIndex`) rather than a table scan. Once I was able to get my head around GSI (indexes!  sorta) and what problem it solves it was smoother sailing, but I'd probably need to use a few more to truly understand.  
 
 ### AWS Lambda and CDK
 
@@ -58,7 +58,7 @@ Lambdas are cool, and straightforward once you stop thinking about servers (and 
 
 ### LocalStack vs. Real AWS
 
-I started the backend development against the Docker-based AWS emulator LocalStack, expecting it to simplify local iteration. It worked well enough for DynamoDB and the basic Lambda setup, but as the project grew the overhead started to outweigh the benefits. Managing the Docker daemon, keeping LocalStack's emulated services in sync with CDK changes, and debugging discrepancies between LocalStack behavior and real AWS behavior added friction that wasn't earning anything.
+I started the backend development against the Docker-based AWS emulator LocalStack, expecting it to simplify local iteration. It worked well enough for DynamoDB and the basic Lambda setup, but as the project grew the overhead started to outweigh the benefits. Managing the Docker daemon, keeping LocalStack's emulated services in sync with CDK changes, and debugging discrepancies between LocalStack behavior and real AWS behavior added friction that was more frustrating then necessary.
 
 Once I switched to deploying directly to AWS the overhead disappeared and it turned out to be faster, more reliable, and closer to production behavior. The CDK deploy cycle is quick enough that it doesn't slow down iteration meaningfully. Between LocalStack and AWS I felt there was maybe a bit too much of an "uncanny valley" for what I was trying to accomplish.
 
@@ -130,7 +130,7 @@ The Bedrock quota issue was avoidable — I should have validated Bedrock access
 
 I'd also skip LocalStack entirely from the start. The real AWS free tier covers everything this project uses. The simulation adds overhead and the behavioral differences are a hidden cost that grew and grew as the project progressed.  I don't know a lot about LocalStack and I'm sure it had it's advantages, but AWS was just easier from the start.  
 
-It was only after I'd built the simple agents that I saw the need and potential for more of an AI orchestration layer.  If I ever pick this up again that's clearly the next step.
+It was only after I'd built the three simple agents that I saw the need and potential for more of an AI orchestration layer.  If I ever pick this up again that's clearly the next step.  I'd spend more time planning on paper rather than just jumping right in.
 
 ---
 
