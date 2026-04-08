@@ -31,7 +31,10 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: backend
-        run: pnpm install --frozen-lockfile
+        # run: pnpm install --frozen-lockfile
+        run: |
+          pnpm install --frozen-lockfile
+          ls node_modules/.bin/cdk || echo "CDK NOT FOUND"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
