@@ -68,12 +68,24 @@ export class BackendStack extends cdk.Stack {
     // GET /prescriptions/{memberId}
     // -------------------------------------------------------------------------
 
-    const getPrescriptionsLambda = new lambda.Function(this, 'GetPrescriptionsFunction', {
-      runtime: lambda.Runtime.NODEJS_22_X,
-      handler: 'get-prescriptions.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../lambda/dist')),
-      environment: { TABLE_NAME: table.tableName },
-    });
+    // const getPrescriptionsLambda = new lambda.Function(this, 'GetPrescriptionsFunction', {
+    //   runtime: lambda.Runtime.NODEJS_22_X,
+    //   handler: 'get-prescriptions.handler',
+    //   code: lambda.Code.fromAsset(path.join(__dirname, '../lambda/dist')),
+    //   environment: { TABLE_NAME: table.tableName },
+    // });
+
+    // table.grantReadData(getPrescriptionsLambda);
+
+    const getPrescriptionsLambda = new lambdaNodejs.NodejsFunction(
+      this,
+      'GetPrescriptionsFunction',
+      {
+        entry: path.join(__dirname, '../lambda/get-prescriptions.ts'),
+        runtime: lambda.Runtime.NODEJS_22_X,
+        environment: { TABLE_NAME: table.tableName },
+      },
+    );
 
     table.grantReadData(getPrescriptionsLambda);
 
