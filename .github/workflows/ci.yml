@@ -49,7 +49,8 @@ jobs:
           LANGFUSE_BASE_URL: ${{ secrets.LANGFUSE_BASE_URL }}
         run: |
           bash -e ./scripts/teardown-ci.sh
-          pnpm exec cdk deploy MedTrackCIStack --require-approval never
+          # pnpm exec cdk deploy MedTrackCIStack --require-approval never
+          node_modules/.bin/cdk deploy MedTrackCIStack --require-approval never
           bash -e ./scripts/seed-ci.sh
 
       - name: Invoke orchestrator
