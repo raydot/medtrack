@@ -40,9 +40,9 @@ jobs:
       - name: Teardown, deploy, and seed CI stack
         working-directory: backend
         run: |
-          bash -e ./backend/scripts/teardown-ci.sh
+          bash -e ./scripts/teardown-ci.sh
           npx cdk deploy MedTrackCIStack --require-approval never
-          bash -e ./backend/scripts/seed-ci.sh
+          bash -e ./scripts/seed-ci.sh
 
       - name: Invoke orchestrator
         run: |
