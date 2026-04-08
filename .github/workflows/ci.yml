@@ -64,6 +64,9 @@ jobs:
             --cli-binary-format raw-in-base64-out \
             /tmp/orchestrator-output.json
 
+      - name: Debug orchestrator output
+        run: cat /tmp/orchestrator-output.json
+
       - name: Run quality checks
         working-directory: backend
         env:
