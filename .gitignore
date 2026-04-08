@@ -64,3 +64,5 @@ cucumber-report.html
 *.pem
 *.key
 *.crt
+
+/backend/bin/backend.ts

@@ -209,5 +209,5 @@ Keep it professional and actionable.`,
   });
 
   await langfuse.flushAsync();
-  return { results, briefing };
+  return { results, briefing, traceId };
 };
