@@ -14,6 +14,9 @@ const langfuse = new Langfuse({
   publicKey: process.env.LANGFUSE_PUBLIC_KEY,
 });
 
+const trace = langfuse.trace({ name: 'orchestrator-nightly-run' });
+const traceId = trace.id;
+
 // Default coordinator for this portfolio build — in production this would
 // come from a member-coordinator assignment table
 const DEFAULT_COORDINATOR = 'coordinator-001';
@@ -28,6 +31,8 @@ const invoke = (functionName: string, payload: object) =>
 
 export const handler = async () => {
   const trace = langfuse.trace({ name: 'orchestrator-nightly-run' });
+  const traceId = trace.id;
+
   // Step 1: get all members from the LUT
   const membersResult = await dynamo.send(
     new QueryCommand({
@@ -44,6 +49,11 @@ export const handler = async () => {
 
   for (const member of members) {
     const memberId = member.memberId;
+
+    const memberSpan = trace.span({
+      name: `member-${memberId}`,
+      input: { memberId },
+    });
 
     // Step 2: fetch all member data in parallel for triage
     const [dischargeResult, diagnosisResult, rxResult] = await Promise.all([
@@ -80,7 +90,6 @@ export const handler = async () => {
       return days <= d.readmissionWindowDays;
     });
 
-    const hasOverdue = prescriptions.some((rx) => rx.refillStatus === 'overdue');
     const hasDiagnoses = diagnoses.length > 0;
     const hasDrugNamesForFormulary = prescriptions.length > 0;
 
@@ -95,6 +104,8 @@ export const handler = async () => {
         await invoke(process.env.READMISSION_RISK_FUNCTION!, {
           memberId,
           coordinatorId: DEFAULT_COORDINATOR,
+          traceId,
+          parentObservationId: memberSpan.id,
         });
         results.push({ memberId, agent: 'READMISSION', action: 'invoked' });
       } else {
@@ -112,6 +123,7 @@ export const handler = async () => {
         await invoke(process.env.GAP_IN_CARE_FUNCTION!, {
           memberId,
           coordinatorId: DEFAULT_COORDINATOR,
+          traceId,
         });
         results.push({ memberId, agent: 'GAP_IN_CARE', action: 'invoked' });
       } else {
@@ -119,22 +131,23 @@ export const handler = async () => {
       }
     }
 
-    if (hasOverdue) {
-      const check = await invoke(process.env.CHECK_CASES_FUNCTION!, {
-        memberId,
-        agentType: 'REFILL',
-      });
-      const decision = JSON.parse(Buffer.from(check.Payload!).toString());
-      if (decision.decision === 'proceed') {
-        await invoke(process.env.REFILL_AGENT_FUNCTION!, {
-          memberId,
-          coordinatorId: DEFAULT_COORDINATOR,
-        });
-        results.push({ memberId, agent: 'REFILL', action: 'invoked' });
-      } else {
-        results.push({ memberId, agent: 'REFILL', action: decision.decision });
-      }
-    }
+    // if (hasOverdue) {
+    //   const check = await invoke(process.env.CHECK_CASES_FUNCTION!, {
+    //     memberId,
+    //     agentType: 'REFILL',
+    //   });
+    //   const decision = JSON.parse(Buffer.from(check.Payload!).toString());
+    //   if (decision.decision === 'proceed') {
+    //     await invoke(process.env.REFILL_AGENT_FUNCTION!, {
+    //       memberId,
+    //       coordinatorId: DEFAULT_COORDINATOR,
+    //       traceId,
+    //     });
+    //     results.push({ memberId, agent: 'REFILL', action: 'invoked' });
+    //   } else {
+    //     results.push({ memberId, agent: 'REFILL', action: decision.decision });
+    //   }
+    // }
 
     if (hasDrugNamesForFormulary) {
       const check = await invoke(process.env.CHECK_CASES_FUNCTION!, {
@@ -147,12 +160,14 @@ export const handler = async () => {
           memberId,
           coordinatorId: DEFAULT_COORDINATOR,
           planId: 'plan-001',
+          traceId,
         });
         results.push({ memberId, agent: 'FORMULARY_SWITCH', action: 'invoked' });
       } else {
         results.push({ memberId, agent: 'FORMULARY_SWITCH', action: decision.decision });
       }
     }
+    memberSpan.end();
   }
 
   // Start Langfuse
@@ -161,6 +176,10 @@ export const handler = async () => {
     model: 'claude-haiku-4-5-20251001',
     input: results,
   });
+
+  // Refill Agent runs once across all members — it queries the GSI directly
+  // await invoke(process.env.REFILL_AGENT_FUNCTION!, { traceId });
+  // results.push({ agent: 'REFILL', action: 'invoked' });
 
   // Step 5: morning briefing via Claude
   const briefingResponse = await anthropic.messages.create({

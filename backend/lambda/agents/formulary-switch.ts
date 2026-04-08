@@ -2,15 +2,23 @@ import Anthropic from '@anthropic-ai/sdk';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+import { Langfuse } from 'langfuse';
 
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({ region: process.env.AWS_REGION }));
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_AUTH_TOKEN });
 const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION });
+const langfuse = new Langfuse({
+  publicKey: process.env.LANGFUSE_PUBLIC_KEY!,
+  secretKey: process.env.LANGFUSE_SECRET_KEY!,
+  baseUrl: process.env.LANGFUSE_BASE_URL,
+});
 
 export interface FormularySwitchInput {
   memberId: string;
   coordinatorId: string;
   planId: string;
+  traceId?: string;
+  parentObservationId?: string;
 }
 
 export const handler = async (event: FormularySwitchInput) => {
@@ -51,6 +59,14 @@ export const handler = async (event: FormularySwitchInput) => {
 
   if (affectedDrugs.length === 0)
     return { skipped: true, reason: 'no formulary changes affect this member' };
+
+  const generation = langfuse.generation({
+    traceId: event.traceId,
+    parentObservationId: event.parentObservationId,
+    name: 'gap-in-care-analysis',
+    model: 'claude-haiku-4-5-20251001',
+    input: { affectedDrugs: affectedDrugs.map(({ rx }) => rx.drugName) },
+  });
 
   // Step 3: ask Claude to select best alternative and draft outreach
   const response = await anthropic.messages.create({
@@ -109,6 +125,16 @@ covered alternative.`,
       ),
     }),
   );
+
+  generation.end({
+    output: outreachDraft,
+    usage: {
+      input: response.usage.input_tokens,
+      output: response.usage.output_tokens,
+    },
+  });
+
+  await langfuse.flushAsync();
 
   return { memberId: event.memberId, urgency, recommendedAlternative, outreachDraft };
 };

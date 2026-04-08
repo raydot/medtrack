@@ -1,8 +1,8 @@
 #!/bin/bash
 
 AWS_REGION=us-west-2
-TABLE=MedTrack
-FORMULARY_TABLE=MedTrackFormulary
+TABLE=MedTrack-CI
+FORMULARY_TABLE=MedTrackFormulary-CI
 DATE_10=$(date -u -d '10 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -v-10d '+%Y-%m-%dT%H:%M:%SZ')
 DATE_3=$(date -u -d '3 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -v-3d '+%Y-%m-%dT%H:%M:%SZ')
 DATE_10_SHORT=$(date -u -d '10 days ago' '+%Y-%m-%d' 2>/dev/null || date -u -v-10d '+%Y-%m-%d')

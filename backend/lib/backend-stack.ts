@@ -13,6 +13,12 @@ const CORS_OPTIONS: apigateway.ResourceOptions = {
   defaultCorsPreflightOptions: { allowOrigins: apigateway.Cors.ALL_ORIGINS },
 };
 
+const langfuseEnv = {
+  LANGFUSE_PUBLIC_KEY: process.env.LANGFUSE_PUBLIC_KEY ?? '',
+  LANGFUSE_SECRET_KEY: process.env.LANGFUSE_SECRET_KEY ?? '',
+  LANGFUSE_BASE_URL: process.env.LANGFUSE_BASE_URL ?? '',
+};
+
 export class BackendStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -111,6 +117,7 @@ export class BackendStack extends cdk.Stack {
         TRIGGER_REFILL_FUNCTION: triggerRefillLambda.functionName,
         FLAG_FOR_REVIEW_FUNCTION: flagForReviewLambda.functionName,
         ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN ?? '',
+        ...langfuseEnv,
       },
     });
 
@@ -149,6 +156,7 @@ export class BackendStack extends cdk.Stack {
           TABLE_NAME: table.tableName,
           TRIGGER_REFILL_FUNCTION: triggerRefillLambda.functionName,
           ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN ?? '',
+          ...langfuseEnv,
         },
       },
     );
@@ -180,6 +188,7 @@ export class BackendStack extends cdk.Stack {
       environment: {
         TABLE_NAME: table.tableName,
         ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN ?? '',
+        ...langfuseEnv,
       },
     });
 
@@ -228,6 +237,7 @@ export class BackendStack extends cdk.Stack {
         TABLE_NAME: table.tableName,
         OPEN_CASE_FUNCTION: openCaseLambda.functionName,
         ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN ?? '',
+        ...langfuseEnv,
       },
     });
 
@@ -247,6 +257,7 @@ export class BackendStack extends cdk.Stack {
         TABLE_NAME: table.tableName,
         OPEN_CASE_FUNCTION: openCaseLambda.functionName,
         ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN ?? '',
+        ...langfuseEnv,
       },
     });
 
@@ -267,6 +278,7 @@ export class BackendStack extends cdk.Stack {
         FORMULARY_TABLE_NAME: formularyTable.tableName,
         OPEN_CASE_FUNCTION: openCaseLambda.functionName,
         ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN ?? '',
+        ...langfuseEnv,
       },
     });
 
@@ -291,9 +303,7 @@ export class BackendStack extends cdk.Stack {
         READMISSION_RISK_FUNCTION: readmissionRiskLambda.functionName,
         FORMULARY_SWITCH_FUNCTION: formularySwitchLambda.functionName,
         ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN ?? '',
-        LANGFUSE_PUBLIC_KEY: process.env.LANGFUSE_PUBLIC_KEY ?? '',
-        LANGFUSE_SECRET_KEY: process.env.LANGFUSE_SECRET_KEY ?? '',
-        LANGFUSE_BASE_URL: process.env.LANGFUSE_BASE_URL ?? '',
+        ...langfuseEnv,
       },
     });
 

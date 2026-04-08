@@ -2,14 +2,22 @@ import Anthropic from '@anthropic-ai/sdk';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+import { Langfuse } from 'langfuse';
 
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({ region: process.env.AWS_REGION }));
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_AUTH_TOKEN });
 const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION });
+const langfuse = new Langfuse({
+  publicKey: process.env.LANGFUSE_PUBLIC_KEY!,
+  secretKey: process.env.LANGFUSE_SECRET_KEY!,
+  baseUrl: process.env.LANGFUSE_BASE_URL,
+});
 
 export interface GapInCareInput {
   memberId: string;
   coordinatorId: string;
+  traceId?: string;
+  parentObservationId?: string;
 }
 
 export const handler = async (event: GapInCareInput) => {
@@ -42,6 +50,14 @@ export const handler = async (event: GapInCareInput) => {
 
   if (diagnoses.length === 0) return { skipped: true, reason: 'no diagnoses on record' };
 
+  const generation = langfuse.generation({
+    traceId: event.traceId,
+    parentObservationId: event.parentObservationId,
+    name: 'gap-in-care-analysis',
+    model: 'claude-haiku-4-5-20251001',
+    input: { diagnoses, prescriptions },
+  });
+
   // Step 2: ask Claude to identify gaps
   const response = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
@@ -73,6 +89,16 @@ Are there any diagnoses with no corresponding medication class in the current me
 
   const textBlock = response.content.find((b) => b.type === 'text');
   const reasoning = textBlock?.text ?? 'No response';
+
+  generation.end({
+    output: reasoning,
+    usage: {
+      input: response.usage.input_tokens,
+      output: response.usage.output_tokens,
+    },
+  });
+
+  await langfuse.flushAsync();
 
   // Step 3: open a case
   await lambdaClient.send(
