@@ -1,0 +1,62 @@
+name: MedTrack CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.CI_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.CI_AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Teardown, deploy, and seed CI stack
+        working-directory: backend
+        run: |
+          bash -e ./scripts/teardown-ci.sh
+          npx cdk deploy MedTrackCIStack --require-approval never
+          bash -e ./scripts/seed-ci.sh
+
+      - name: Invoke orchestrator
+        run: |
+          aws lambda invoke \
+            --function-name OrchestratorFunction-CI \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            /tmp/orchestrator-output.json
+
+      - name: Run quality checks
+        working-directory: backend
+        env:
+          ORCHESTRATOR_OUTPUT: /tmp/orchestrator-output.json
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          LANGFUSE_BASE_URL: ${{ secrets.LANGFUSE_BASE_URL }}
+        run: npx ts-node scripts/evaluate.ts
+
+      - name: Teardown CI stack
+        if: always()
+        working-directory: backend
+        run: bash -e ./scripts/teardown-ci.sh
