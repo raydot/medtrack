@@ -4,7 +4,7 @@ import { BackendStack } from '../lib/backend-stack';
 import { CIStack } from '../lib/ci-stack';
 
 const account = process.env.CDK_DEFAULT_ACCOUNT;
-const region = process.env.CDK_DEFAULT_REGION;
+const region = process.env.CDK_DEFAULT_REGION ?? 'us-west-2';
 
 const app = new cdk.App();
 
