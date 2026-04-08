@@ -22,6 +22,7 @@ for fn in TriggerRefillFunction-CI FlagForReviewFunction-CI RefillAgentFunction-
 done
 
 echo "Destroying CDK stack..."
+echo "Current dir: $(pwd)"
 # npx cdk destroy MedTrackCIStack --force 2>/dev/null || true
 ./node_modules/.bin/cdk destroy MedTrackCIStack
 
