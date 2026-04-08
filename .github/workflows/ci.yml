@@ -41,7 +41,9 @@ jobs:
         working-directory: backend
         run: |
           bash -e ./scripts/teardown-ci.sh
-          npx cdk deploy MedTrackCIStack --require-approval never
+          # npx cdk deploy MedTrackCIStack --require-approval never
+          ./node_modules/.bin/cdk deploy MedTrackCIStack --require-approval never
+
           bash -e ./scripts/seed-ci.sh
 
       - name: Invoke orchestrator
