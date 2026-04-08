@@ -23,7 +23,7 @@ done
 
 echo "Destroying CDK stack..."
 echo "Current dir: $(pwd)"
-# npx cdk destroy MedTrackCIStack --force 2>/dev/null || true
-./node_modules/.bin/cdk destroy MedTrackCIStack
+npx cdk destroy MedTrackCIStack --force 2>/dev/null || true
+# ./node_modules/.bin/cdk destroy MedTrackCIStack
 
 echo "CI teardown complete."
